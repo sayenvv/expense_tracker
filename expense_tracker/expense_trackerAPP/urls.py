@@ -19,6 +19,9 @@ urlpatterns = [
     
     path('Add_customcategories', views.Add_customcategories,name="Add_customcategories"),
     path('Add_dailyExpense', views.Add_dailyExpense,name="Add_dailyExpense"),
+    path('Reports', views.Reports,name="Reports"),
+    
+    
     
 
 

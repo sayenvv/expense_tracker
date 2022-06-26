@@ -1,9 +1,11 @@
 
+from urllib import request
 from django.shortcuts import render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .serializers import *
 from rest_framework import exceptions
+from django.db.models import F,Sum
 import jwt,datetime
 
 # Create your views here.
@@ -18,16 +20,16 @@ def register(request):
 import json
 @api_view(["POST"])
 def Login(request):
-    email = request.data['email']
+    username = request.data['username']
     password = request.data['password']
-    log_cred = ciedUser.objects.filter(email=email).first()
+    log_cred = ciedUser.objects.filter(username=username).first()
     if log_cred is None:
         raise exceptions.AuthenticationFailed('User Not Found')
     if not log_cred.check_password(password):
         raise exceptions.AuthenticationFailed("password is incorrect")
     payload = {
             'id': log_cred.id,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=1),
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=5),
             'iat': datetime.datetime.utcnow()
         }
     token = jwt.encode(payload, 'secret', algorithm='HS256')
@@ -52,8 +54,15 @@ def userview(request):
         raise exceptions.AuthenticationFailed('Unauthenticated!')
 
     user = ciedUser.objects.filter(id=payload['id']).first()
+    total_expense = Daily_expense.objects.filter(user=user).aggregate(Sum('expense_amount'))
+    
     serializer = RegisterSerializer(user)
-    return Response(serializer.data)
+    data = {
+        'data': serializer.data,
+        'total_expense':total_expense['expense_amount__sum'],
+        
+        }
+    return Response(data)
 
 @api_view(["POST"])
 def LogoutView(request):
@@ -96,3 +105,19 @@ def Add_dailyExpense(request):
     data = {}
     raise exceptions.ValidationError("unsuccessful")
 
+@api_view(["POST"])
+def Reports(request):
+    total_expense = Daily_expense.objects.all().aggregate(Sum('expense_amount'))
+    category = Category.objects.all()
+    users = ciedUser.objects.all().exclude(is_superuser=True)
+    currency = Currency.objects.all()
+    categorySerializ = CategorySerializer(category,many=True)
+    userserializer = UserSerializer(users,many=True) 
+    currencyerializer = CurrencySerializer(currency,many=True)
+    data = {
+        'categorywise_report' : categorySerializ.data,
+        'userwise_report' : userserializer.data,
+        'currencywise_report' : currencyerializer.data,
+        'total_expense' : total_expense['expense_amount__sum']
+    }
+    return Response(data)
